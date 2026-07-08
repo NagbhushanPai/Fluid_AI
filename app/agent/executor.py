@@ -1,6 +1,8 @@
 import time
 from typing import Any
 
+from pydantic import BaseModel
+
 from app.models.task import Task
 from app.tools.registry import run_tool
 
@@ -27,7 +29,7 @@ def execute_tasks(
             task.status = "running"
             try:
                 result = run_tool(task.tool, user_request, context)
-                task.result = _stringify_result(result)
+                task.result = result
                 task.status = "completed"
                 _merge_context(context, task, result)
                 completed.add(task.id)
@@ -37,7 +39,7 @@ def execute_tasks(
                         "status": task.status,
                         "duration_ms": int((time.perf_counter() - start) * 1000),
                         "tool": task.tool,
-                        "result_preview": task.result[:180] if task.result else None,
+                        "result_preview": _preview_result(task.result),
                     }
                 )
                 progress = True
@@ -69,17 +71,24 @@ def _merge_context(context: dict[str, Any], task: Task, result: Any) -> None:
         if assumptions:
             context["assumptions"] = assumptions
     elif task.tool == "planning_tool" and isinstance(result, dict):
-        context["timeline"] = result
-    elif task.tool == "estimation_tool" and isinstance(result, dict):
-        context["budget"] = result
-    elif task.tool == "content_tool" and isinstance(result, dict):
-        context["report_sections"] = result
+        context["timeline_summary"] = result
+        context["timeline_phases"] = result.get("phases", [])
+    elif task.tool == "estimation_tool":
+        context["budget_plan"] = result
+    elif task.tool == "risk_tool":
+        context["risks"] = result
+    elif task.tool == "content_synthesis_tool":
+        context["document_content"] = result
     elif task.tool == "document_tool":
         context["document_status"] = result
 
 
-def _stringify_result(result: Any) -> str:
+def _preview_result(result: Any) -> str | None:
+    if result is None:
+        return None
     if isinstance(result, str):
-        return result
-    return str(result)
+        return result[:180]
+    if isinstance(result, BaseModel):
+        return str(result.model_dump())[:180]
+    return str(result)[:180]
 

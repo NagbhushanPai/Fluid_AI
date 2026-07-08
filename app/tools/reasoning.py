@@ -10,7 +10,7 @@ def derive_assumptions(user_request: str) -> list[dict[str, Any]]:
             {
                 "field": "budget",
                 "value": "$100,000",
-                "reason": "No budget was provided by the user.",
+                "rationale": "No budget was provided by the user.",
             }
         )
 
@@ -19,7 +19,7 @@ def derive_assumptions(user_request: str) -> list[dict[str, Any]]:
             {
                 "field": "team_size",
                 "value": "6 people",
-                "reason": "Estimated for a 3-month delivery window.",
+                "rationale": "Estimated for a 3-month delivery window.",
             }
         )
 
@@ -28,7 +28,7 @@ def derive_assumptions(user_request: str) -> list[dict[str, Any]]:
             {
                 "field": "scope",
                 "value": "Standard implementation scope",
-                "reason": "The request does not specify detailed constraints.",
+                "rationale": "The request does not specify detailed constraints.",
             }
         )
 
@@ -38,6 +38,6 @@ def derive_assumptions(user_request: str) -> list[dict[str, Any]]:
 def summarize_assumptions(assumptions: list[dict[str, Any]]) -> str:
     lines = []
     for item in assumptions:
-        lines.append(f"- {item['field']}: {item['value']} ({item['reason']})")
+        lines.append(f"- {item['field']}: {item['value']} ({item.get('rationale', item.get('reason', 'No rationale provided.'))})")
     return "\n".join(lines)
 

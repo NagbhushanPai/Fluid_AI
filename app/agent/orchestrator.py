@@ -1,54 +1,41 @@
-from pathlib import Path
 from uuid import uuid4
 
-from app.agent.evaluator import evaluate_output, needs_recovery
+from app.agent.evaluator import evaluate_document
 from app.agent.executor import execute_tasks
-from app.agent.planner import create_corrective_plan, create_plan
-from app.core.config import OUTPUT_DIR, QUALITY_THRESHOLD
+from app.agent.planner import create_plan
+from app.core.config import OUTPUT_DIR
+from app.models.content import Assumption
 from app.models.response import AgentResponse, ExecutionRecord
+from app.tools.content import revise_document_content, synthesize_document_content
 from app.tools.document import generate_document
 from app.tools.reasoning import derive_assumptions
 
 
 def run_agent(user_request: str) -> AgentResponse:
-    request_id = str(uuid4())
+    request_id = uuid4().hex[:12]
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     assumptions = derive_assumptions(user_request)
     plan = create_plan(user_request)
-    executed_plan = list(plan)
     context, trace = execute_tasks(plan, user_request, assumptions)
-    evaluation = evaluate_output(context)
+
+    content = context.get("document_content")
+    if content is None:
+        content = synthesize_document_content(user_request, context)
+
+    evaluation = evaluate_document(user_request, content)
     revisions = 0
+    while revisions < 2 and not evaluation.passed:
+        content = revise_document_content(
+            content=content,
+            issues=evaluation.issues,
+            request=user_request,
+            context=context,
+        )
+        evaluation = evaluate_document(user_request, content)
+        revisions += 1
 
-    if needs_recovery(evaluation):
-        corrective_tasks = create_corrective_plan(evaluation.get("issues", []))
-        executed_plan.extend(corrective_tasks)
-        corrective_context, corrective_trace = execute_tasks(corrective_tasks, user_request, context.get("assumptions", assumptions))
-        context.update(corrective_context)
-        trace.extend(corrective_trace)
-        revised_evaluation = evaluate_output(context)
-        if revised_evaluation.get("score", 0) >= evaluation.get("score", 0):
-            evaluation = revised_evaluation
-        revisions = 1
-
-    final_sections = context.get("report_sections", {})
-    if not final_sections:
-        final_sections = {
-            "executive_summary": "A report was generated from the agent plan.",
-            "timeline": context.get("timeline", {}),
-            "risks": ["Budget uncertainty", "Dependency drift"],
-        }
-
-    document_path = generate_document(
-        OUTPUT_DIR / f"{request_id}.docx",
-        request_id,
-        user_request,
-        context.get("assumptions", assumptions),
-        trace,
-        final_sections,
-        evaluation,
-    )
+    document_path = generate_document(OUTPUT_DIR / f"{request_id}.docx", content)
 
     execution_records = [
         ExecutionRecord(
@@ -61,15 +48,34 @@ def run_agent(user_request: str) -> AgentResponse:
         for item in trace
     ]
 
-    status = "completed" if evaluation.get("score", 0) >= QUALITY_THRESHOLD else "completed_with_warnings"
+    completed_count = sum(1 for item in trace if item.get("status") == "completed")
+    failed_count = sum(1 for item in trace if item.get("status") == "failed")
+    normalized_assumptions = _normalize_assumptions(context.get("assumptions", assumptions))
+
+    status = "completed" if failed_count == 0 else "partial"
     return AgentResponse(
         status=status,
         request_id=request_id,
-        plan=executed_plan,
-        assumptions=context.get("assumptions", assumptions),
+        plan=plan,
+        assumptions=normalized_assumptions,
         execution=execution_records,
-        quality_score=float(evaluation.get("score", 0)),
+        quality_score=float(evaluation.average_score),
         revisions=revisions,
         document_url=str(document_path),
-        execution_summary=f"Generated {len(trace)} task executions with quality score {evaluation.get('score', 0)}.",
+        execution_summary=(
+            f"Executed {len(trace)} tasks: {completed_count} completed, {failed_count} failed. "
+            f"Evaluation score: {evaluation.average_score}."
+        ),
+        content=content,
+        evaluation=evaluation,
     )
+
+
+def _normalize_assumptions(items: list[dict] | list[Assumption]) -> list[Assumption]:
+    normalized: list[Assumption] = []
+    for item in items:
+        if isinstance(item, Assumption):
+            normalized.append(item)
+        elif isinstance(item, dict):
+            normalized.append(Assumption(**item))
+    return normalized

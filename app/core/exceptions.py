@@ -9,3 +9,7 @@ class PlanningError(AgentError):
 class ExecutionError(AgentError):
     pass
 
+
+class BudgetValidationError(AgentError):
+    pass
+

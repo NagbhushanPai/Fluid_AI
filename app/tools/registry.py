@@ -1,7 +1,9 @@
 from typing import Any
 
+from app.tools.content import synthesize_document_content
 from app.tools.estimation import create_timeline, estimate_budget
 from app.tools.reasoning import derive_assumptions
+from app.tools.risk import analyze_risks
 
 
 def run_tool(tool_name: str, user_request: str, context: dict[str, Any]) -> dict[str, Any] | str:
@@ -17,21 +19,11 @@ def run_tool(tool_name: str, user_request: str, context: dict[str, Any]) -> dict
     if tool_name == "estimation_tool":
         return estimate_budget(user_request, context.get("assumptions", []))
 
-    if tool_name == "content_tool":
-        assumptions = context.get("assumptions", [])
-        budget = context.get("budget", {})
-        timeline = context.get("timeline", {})
-        return {
-            "executive_summary": f"This plan addresses the request: {user_request}",
-            "risks": [
-                "Budget uncertainty",
-                "Timeline conflict if dependencies slip",
-            ],
-            "timeline": timeline,
-            "budget": budget,
-            "implementation_notes": "Generated with dependency-aware execution.",
-            "assumptions_snapshot": assumptions,
-        }
+    if tool_name == "risk_tool":
+        return analyze_risks(user_request, context)
+
+    if tool_name == "content_synthesis_tool":
+        return synthesize_document_content(user_request, context)
 
     if tool_name == "document_tool":
         return "Document artifact assembled."

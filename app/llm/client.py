@@ -65,33 +65,39 @@ def _fallback_tasks(prompt: str) -> list[dict]:
     tasks = [
         {
             "id": "task_1",
-            "description": "Identify business requirements",
+            "description": "Analyze project requirements",
             "tool": "reasoning_tool",
             "dependencies": [],
         },
         {
             "id": "task_2",
-            "description": "Create project timeline",
-            "tool": "planning_tool",
+            "description": "Define project scope and objectives",
+            "tool": "reasoning_tool",
             "dependencies": ["task_1"],
         },
         {
             "id": "task_3",
-            "description": "Estimate project budget",
-            "tool": "estimation_tool",
-            "dependencies": ["task_1"],
+            "description": "Create 90-day implementation timeline",
+            "tool": "planning_tool",
+            "dependencies": ["task_1", "task_2"],
         },
         {
             "id": "task_4",
-            "description": "Generate final document sections",
-            "tool": "content_tool",
-            "dependencies": ["task_2", "task_3"],
+            "description": "Estimate detailed project budget",
+            "tool": "estimation_tool",
+            "dependencies": ["task_2"],
         },
         {
             "id": "task_5",
-            "description": "Assemble DOCX report",
-            "tool": "document_tool",
-            "dependencies": ["task_4"],
+            "description": "Perform project risk analysis",
+            "tool": "risk_tool",
+            "dependencies": ["task_2", "task_3"],
+        },
+        {
+            "id": "task_6",
+            "description": "Synthesize final project plan",
+            "tool": "content_synthesis_tool",
+            "dependencies": ["task_2", "task_3", "task_4", "task_5"],
         },
     ]
 
@@ -118,14 +124,14 @@ def _fallback_assumptions(prompt: str) -> list[dict]:
             {
                 "field": "budget",
                 "value": "$100,000",
-                "reason": "No explicit budget was provided.",
+                "rationale": "No explicit budget was provided.",
             }
         )
     assumptions.append(
         {
             "field": "team_size",
             "value": "6 people",
-            "reason": "Estimated from typical scope and 3-month delivery window.",
+            "rationale": "Estimated from typical scope and 3-month delivery window.",
         }
     )
     return assumptions
@@ -133,20 +139,35 @@ def _fallback_assumptions(prompt: str) -> list[dict]:
 
 def _fallback_evaluation(prompt: str) -> dict:
     text = prompt.lower()
-    issues = []
-    if "unclear" in text or "missing" in text:
-        issues.append("Some sections may need more detail.")
-    if "budget" in text and "assumption" not in text:
-        issues.append("Budget assumptions are unclear.")
-    score = 8.7 if not issues else 6.8
+    issues: List[dict] = []
+    if "timeline" in text and "phase" not in text:
+        issues.append(
+            {
+                "section": "timeline",
+                "problem": "Timeline lacks clearly defined phases.",
+                "severity": "high",
+                "suggested_fix": "Add at least 3 phases with duration, activities, and deliverables.",
+            }
+        )
+    if "budget" in text and "rationale" not in text:
+        issues.append(
+            {
+                "section": "budget",
+                "problem": "Budget lacks item-level rationale.",
+                "severity": "medium",
+                "suggested_fix": "Include rationale for each budget category.",
+            }
+        )
+    score = 8.2 if not issues else 6.5
     return {
-        "completeness": 8 if not issues else 6,
-        "clarity": 9 if not issues else 7,
-        "consistency": 8 if not issues else 6,
-        "requirement_coverage": 8 if not issues else 6,
-        "issues": issues or ["No major issues detected."],
+        "requirement_coverage": 8.1 if not issues else 6.4,
+        "content_depth": 8.2 if not issues else 6.2,
+        "clarity": 8.3 if not issues else 6.7,
+        "consistency": 8.0 if not issues else 6.3,
+        "professional_quality": 8.2 if not issues else 6.5,
+        "issues": issues,
         "passed": not issues,
-        "score": score,
+        "average_score": score,
     }
 
 

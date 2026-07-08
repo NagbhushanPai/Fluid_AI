@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -12,5 +12,5 @@ class Task(BaseModel):
     tool: str
     dependencies: list[str] = Field(default_factory=list)
     status: TaskStatus = "pending"
-    result: Optional[str] = None
+    result: Any | None = None
 
